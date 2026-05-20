@@ -1,0 +1,599 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); background: transparent; }
+#app { display: flex; flex-direction: column; height: 640px; background: #0f1117; border-radius: var(--border-radius-lg); overflow: hidden; border: 0.5px solid #2a2d3a; }
+#toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #161922; border-bottom: 0.5px solid #2a2d3a; flex-shrink: 0; }
+#toolbar .app-title { font-size: 15px; font-weight: 500; color: #e8e9f0; margin-right: 8px; letter-spacing: -0.3px; }
+#toolbar .app-title span { color: #7c6ff7; }
+.tb-btn { background: #1e2130; border: 0.5px solid #2e3248; border-radius: 8px; color: #a0a3b1; padding: 6px 12px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.15s; white-space: nowrap; }
+.tb-btn:hover { background: #262a40; color: #e8e9f0; border-color: #7c6ff7; }
+.tb-btn i { font-size: 15px; }
+.tb-sep { width: 0.5px; height: 20px; background: #2a2d3a; margin: 0 4px; }
+#canvas-wrap { flex: 1; position: relative; overflow: hidden; cursor: grab; }
+#canvas-wrap.panning { cursor: grabbing; }
+#svg-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.node-el { position: absolute; transform: translate(-50%, -50%); cursor: pointer; user-select: none; }
+.node-box { border-radius: 14px; padding: 8px 16px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: all 0.2s; box-shadow: 0 2px 12px rgba(0,0,0,0.4); min-width: 90px; text-align: center; justify-content: center; }
+.node-box:hover { transform: scale(1.06); }
+.node-box.selected { outline: 2px solid #fff; outline-offset: 2px; }
+.node-root { background: linear-gradient(135deg, #7c6ff7, #5a4fcf); color: #fff; font-size: 15px; padding: 11px 22px; border-radius: 18px; }
+.node-branch { background: #1e2130; border: 1.5px solid; color: #e0e1f0; }
+.node-leaf { background: #161922; border: 1px solid; color: #b0b3c6; font-size: 12px; padding: 5px 12px; border-radius: 10px; }
+.node-arrow {
+    position: absolute;
+    background: #378add;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    z-index: 15;
+    transition: background 0.2s;
+    user-select: none;
+}
+.node-arrow:hover {
+    background: #509ff0;
+}
+#status-bar { display: flex; align-items: center; gap: 16px; padding: 7px 16px; background: #161922; border-top: 0.5px solid #2a2d3a; flex-shrink: 0; font-size: 12px; color: #606375; }
+#status-bar .s-info { margin-left: auto; }
+#node-panel { position: absolute; right: 12px; top: 12px; width: 200px; background: #161922; border: 0.5px solid #2a2d3a; border-radius: var(--border-radius-lg); padding: 12px; z-index: 10; display: none; }
+#node-panel h4 { font-size: 12px; color: #7c6ff7; font-weight: 500; margin-bottom: 10px; letter-spacing: 0.5px; text-transform: uppercase; }
+#node-panel input, #node-panel textarea { width: 100%; background: #0f1117; border: 0.5px solid #2e3248; border-radius: 8px; color: #e0e1f0; font-size: 13px; padding: 6px 10px; margin-bottom: 8px; }
+#node-panel textarea { resize: vertical; min-height: 60px; }
+#node-panel input:focus, #node-panel textarea:focus { outline: none; border-color: #7c6ff7; }
+.color-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.color-dot { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; }
+.color-dot:hover, .color-dot.active { border-color: #fff; transform: scale(1.15); }
+.panel-btn { width: 100%; background: #7c6ff7; border: none; border-radius: 8px; color: #fff; font-size: 13px; padding: 7px; cursor: pointer; font-weight: 500; margin-top: 2px; }
+.panel-btn:hover { background: #6a5de0; }
+.panel-btn.danger { background: #3a2020; color: #e24b4a; border: 0.5px solid #e24b4a44; }
+.panel-btn.danger:hover { background: #4a2525; }
+#toast { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); background: #7c6ff7; color: #fff; font-size: 13px; padding: 8px 18px; border-radius: 20px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 99; }
+#minimap { position: absolute; bottom: 12px; right: 12px; width: 120px; height: 75px; background: #161922; border: 0.5px solid #2a2d3a; border-radius: 8px; overflow: hidden; opacity: 0.8; }
+#minimap canvas { width: 100%; height: 100%; }
+#sidebar-overlay { position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); z-index: 100; display: none; }
+#sidebar { position: absolute; top:0; left:-280px; width: 280px; height: 100%; background: #161922; border-right: 0.5px solid #2a2d3a; z-index: 101; transition: left 0.3s; display: flex; flex-direction: column; }
+#sidebar.open { left: 0; }
+.sidebar-header { padding: 16px; border-bottom: 0.5px solid #2a2d3a; display: flex; justify-content: space-between; align-items: center; color: #e8e9f0; }
+.project-item { padding: 12px; border-radius: 8px; margin-bottom: 8px; background: #1e2130; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 0.5px solid transparent; transition: all 0.2s; color: #a0a3b1; }
+.project-item:hover { background: #262a40; border-color: #7c6ff7; color: #e8e9f0; }
+.project-item.active { border-color: #7c6ff7; background: #262a40; color: #e8e9f0; }
+.project-del { color: #e24b4a; background: transparent; border: none; cursor: pointer; font-size: 16px; padding: 4px; border-radius: 4px; }
+.project-del:hover { background: #4a2525; }
+</style>
+
+<div id="app">
+  <div id="toolbar">
+    <button class="tb-btn" onclick="toggleSidebar()" style="padding: 6px; font-size: 16px; margin-right: 4px;">☰</button>
+    <div class="app-title">Mind<span>Node</span></div>
+    <button class="tb-btn" onclick="addChildNode()"><i class="ti ti-plus" aria-hidden="true"></i> নোড যোগ</button>
+    <button class="tb-btn" onclick="addSiblingNode()"><i class="ti ti-git-branch" aria-hidden="true"></i> শাখা</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" onclick="autoLayout()"><i class="ti ti-layout-distribute-horizontal" aria-hidden="true"></i> সাজাও</button>
+    <button class="tb-btn" onclick="resetView()"><i class="ti ti-focus-2" aria-hidden="true"></i> রিসেট</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" onclick="exportMap()"><i class="ti ti-download" aria-hidden="true"></i> এক্সপোর্ট</button>
+  </div>
+  <div id="canvas-wrap">
+    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <div id="sidebar">
+      <div class="sidebar-header">
+        <h3>প্রজেক্টসমূহ</h3>
+        <button onclick="toggleSidebar()" style="background:transparent;border:none;color:#fff;cursor:pointer;font-size:16px;">✕</button>
+      </div>
+      <div style="padding:16px; overflow-y:auto; flex:1;">
+        <button class="panel-btn" onclick="createNewProject()" style="margin-bottom:16px; padding: 10px;">+ নতুন প্রজেক্ট</button>
+        <div id="project-list"></div>
+      </div>
+    </div>
+    <svg id="svg-canvas"></svg>
+    <div id="node-panel">
+      <h4>নোড সম্পাদনা</h4>
+      <input type="text" id="node-label-input" placeholder="নাম লিখুন..." />
+      <textarea id="node-note-input" placeholder="নোট লিখুন..."></textarea>
+      <div class="color-row" id="color-picker"></div>
+      <button class="panel-btn" onclick="applyNodeEdit()">প্রয়োগ করুন</button>
+      <button class="panel-btn danger" onclick="deleteNode()" style="margin-top:6px">মুছুন</button>
+    </div>
+    <div id="node-panel"></div>
+    <canvas id="minimap-canvas" style="position:absolute;bottom:12px;right:12px;width:120px;height:75px;background:#161922;border:0.5px solid #2a2d3a;border-radius:8px;opacity:0.8;"></canvas>
+    <div id="toast"></div>
+  </div>
+  <div id="status-bar">
+    <span id="s-nodes">নোড: 0</span>
+    <span id="s-selected">নির্বাচিত: কিছু না</span>
+    <span class="s-info">স্ক্রোল = জুম | ড্র্যাগ = সরান | ক্লিক = নির্বাচন</span>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#7c6ff7','#1d9e75','#d85a30','#d4537e','#378add','#ba7517','#e24b4a'];
+const COLOR_NAMES = ['purple','teal','coral','pink','blue','amber','red'];
+
+let nodes = [];
+let nextId = 14;
+let selectedId = null;
+let panX = 0, panY = 0, scale = 1;
+let projects = [];
+let currentProjectId = null;
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  if(sb.classList.contains('open')){
+    sb.classList.remove('open');
+    ov.style.display = 'none';
+  } else {
+    sb.classList.add('open');
+    ov.style.display = 'block';
+    renderProjectList();
+  }
+}
+
+function initProjects() {
+  const pList = localStorage.getItem('mindnode_projects_list');
+  if (pList) {
+    projects = JSON.parse(pList);
+  } else {
+    currentProjectId = 'proj-' + Date.now();
+    projects = [{ id: currentProjectId, name: 'আমার প্রজেক্ট', lastModified: Date.now() }];
+    saveProjectsList();
+  }
+  const lastActive = localStorage.getItem('mindnode_current_project');
+  if (lastActive && projects.find(p => p.id === lastActive)) {
+    loadProject(lastActive);
+  } else {
+    loadProject(projects[0].id);
+  }
+}
+
+function saveProjectsList() {
+  localStorage.setItem('mindnode_projects_list', JSON.stringify(projects));
+  if(currentProjectId) localStorage.setItem('mindnode_current_project', currentProjectId);
+}
+
+function loadProject(id) {
+  if (currentProjectId && currentProjectId !== id) {
+    requestSave(true); // Sync save current project
+  }
+  currentProjectId = id;
+  const data = localStorage.getItem('mindnode_data_' + id);
+  if (data) {
+    try {
+      const parsed = JSON.parse(data);
+      nodes = parsed.nodes || [];
+      nextId = parsed.nextId || 14;
+      panX = parsed.panX || 0;
+      panY = parsed.panY || 0;
+      scale = parsed.scale || 1;
+    } catch(e) {}
+  } else {
+    if (projects.length === 1 && !localStorage.getItem('mindnode_data_' + id)) {
+      // First time loading default map
+      nodes = [
+        { id: 1, label: 'আমার প্রজেক্ট', note: '', x: 0, y: 0, color: '#7c6ff7', type: 'root', parent: null, children: [] },
+        { id: 2, label: 'গবেষণা', x: -200, y: -120, color: '#1d9e75', type: 'branch', parent: 1, children: [] },
+        { id: 3, label: 'ডিজাইন', x: 200, y: -120, color: '#378add', type: 'branch', parent: 1, children: [] },
+        { id: 4, label: 'উন্নয়ন', x: -200, y: 120, color: '#d85a30', type: 'branch', parent: 1, children: [] },
+        { id: 5, label: 'প্রকাশ', x: 200, y: 120, color: '#ba7517', type: 'branch', parent: 1, children: [] },
+        { id: 6, label: 'সাক্ষাৎকার', x: -360, y: -160, color: '#1d9e75', type: 'leaf', parent: 2, children: [] },
+        { id: 7, label: 'বাজার বিশ্লেষণ', x: -360, y: -80, color: '#1d9e75', type: 'leaf', parent: 2, children: [] },
+        { id: 8, label: 'Wireframe', x: 360, y: -160, color: '#378add', type: 'leaf', parent: 3, children: [] },
+        { id: 9, label: 'Prototype', x: 360, y: -80, color: '#378add', type: 'leaf', parent: 3, children: [] },
+        { id: 10, label: 'Frontend', x: -360, y: 80, color: '#d85a30', type: 'leaf', parent: 4, children: [] },
+        { id: 11, label: 'Backend', x: -360, y: 160, color: '#d85a30', type: 'leaf', parent: 4, children: [] }
+      ];
+      nodes.forEach(n => {
+        if(n.parent) {
+          const p = nodes.find(x=>x.id===n.parent);
+          if(p && !p.children.includes(n.id)) p.children.push(n.id);
+        }
+      });
+      nextId = 12;
+    } else {
+      // Empty new project
+      nodes = [ { id: 1, label: 'নতুন প্রজেক্ট', note: '', x: 0, y: 0, color: '#7c6ff7', type: 'root', parent: null, children: [] } ];
+      nextId = 2;
+    }
+    panX = 0; panY = 0; scale = 1;
+  }
+  if (typeof visibleNodes !== 'undefined') visibleNodes.clear();
+  selectedId = null;
+  const panel = document.getElementById('node-panel');
+  if(panel) panel.style.display='none';
+  render();
+}
+
+let saveTimeout = null;
+function requestSave(sync = false) {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  const saveAction = () => {
+    if (!currentProjectId) return;
+    const data = { nodes, nextId, panX, panY, scale };
+    localStorage.setItem('mindnode_data_' + currentProjectId, JSON.stringify(data));
+    
+    // Sync project name with root node label
+    const root = nodes.find(n => n.type === 'root');
+    const proj = projects.find(p => p.id === currentProjectId);
+    if (root && proj && (proj.name !== root.label || sync)) {
+      proj.name = root.label;
+      proj.lastModified = Date.now();
+      saveProjectsList();
+    }
+  };
+  
+  if (sync) saveAction();
+  else saveTimeout = setTimeout(saveAction, 500);
+}
+
+function createNewProject() {
+  const newId = 'proj-' + Date.now();
+  projects.push({ id: newId, name: 'নতুন প্রজেক্ট', lastModified: Date.now() });
+  saveProjectsList();
+  loadProject(newId);
+  renderProjectList();
+  toggleSidebar();
+}
+
+function deleteProject(id, e) {
+  e.stopPropagation();
+  if (projects.length <= 1) {
+    showToast('অন্তত একটি প্রজেক্ট থাকতে হবে!');
+    return;
+  }
+  if(confirm('আপনি কি এই প্রজেক্টটি মুছতে চান?')) {
+    projects = projects.filter(p => p.id !== id);
+    localStorage.removeItem('mindnode_data_' + id);
+    saveProjectsList();
+    if (currentProjectId === id) {
+      loadProject(projects[0].id);
+    } else {
+      renderProjectList();
+    }
+  }
+}
+
+function renderProjectList() {
+  const list = document.getElementById('project-list');
+  list.innerHTML = '';
+  const sorted = [...projects].sort((a,b)=>b.lastModified - a.lastModified);
+  sorted.forEach(p => {
+    const el = document.createElement('div');
+    el.className = `project-item ${p.id === currentProjectId ? 'active' : ''}`;
+    el.onclick = () => { loadProject(p.id); toggleSidebar(); };
+    const date = new Date(p.lastModified).toLocaleDateString(undefined, {month:'short', day:'numeric'});
+    el.innerHTML = `
+      <div style="overflow:hidden;">
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;">${p.name}</div>
+        <div style="font-size:11px;opacity:0.6;">${date}</div>
+      </div>
+      <button class="project-del" onclick="deleteProject('${p.id}', event)">✕</button>
+    `;
+    list.appendChild(el);
+  });
+}
+let isPanning = false, panStart = {x:0,y:0};
+let editColor = '#7c6ff7';
+let visibleNodes = new Set();
+
+const wrap = document.getElementById('canvas-wrap');
+const svg = document.getElementById('svg-canvas');
+const panel = document.getElementById('node-panel');
+
+function getCenter() {
+  return { cx: wrap.clientWidth/2, cy: wrap.clientHeight/2 };
+}
+
+function toScreen(nx, ny) {
+  const {cx,cy} = getCenter();
+  return { sx: cx + (nx + panX)*scale, sy: cy + (ny + panY)*scale };
+}
+
+function fromScreen(sx, sy) {
+  const {cx,cy} = getCenter();
+  return { nx: (sx-cx)/scale - panX, ny: (sy-cy)/scale - panY };
+}
+
+function toggleCollapse(id, e) {
+  e.stopPropagation();
+  const n = nodes.find(x => x.id === id);
+  if (n) {
+    n.collapsed = !n.collapsed;
+    render();
+  }
+}
+
+function render() {
+  svg.innerHTML = '';
+  
+  visibleNodes.clear();
+  function markVisible(n) {
+    visibleNodes.add(n.id);
+    if (!n.collapsed && n.children) {
+      n.children.forEach(cid => {
+         const c = nodes.find(x => x.id === cid);
+         if (c) markVisible(c);
+      });
+    }
+  }
+  nodes.filter(x => !x.parent).forEach(markVisible);
+
+  nodes.forEach(n => {
+    if (!visibleNodes.has(n.id)) return;
+    if(n.parent) {
+      const p = nodes.find(x=>x.id===n.parent);
+      if(!p || !visibleNodes.has(p.id)) return;
+      const {sx:x1,sy:y1} = toScreen(p.x,p.y);
+      const {sx:x2,sy:y2} = toScreen(n.x,n.y);
+      const dx = Math.abs(x2 - x1) * 0.45;
+      const droop = 15 * scale;
+      const curvePath = `M${x1},${y1} C${x1 + dx},${y1 + droop} ${x2 - dx},${y2 + droop} ${x2},${y2}`;
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+      line.setAttribute('d', curvePath);
+      line.setAttribute('stroke', n.color);
+      line.setAttribute('stroke-width', (n.type==='leaf' ? 2 : 3) * scale);
+      line.setAttribute('fill','none');
+      line.setAttribute('stroke-linecap','round');
+      line.style.filter = 'drop-shadow(0px 3px 2px rgba(0,0,0,0.5))';
+      svg.appendChild(line);
+
+      const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      highlight.setAttribute('d', curvePath);
+      highlight.setAttribute('stroke', 'rgba(255, 255, 255, 0.25)');
+      highlight.setAttribute('stroke-width', 1 * scale);
+      highlight.setAttribute('fill', 'none');
+      highlight.setAttribute('stroke-linecap', 'round');
+      highlight.style.pointerEvents = 'none';
+      svg.appendChild(highlight);
+    }
+  });
+  document.querySelectorAll('.node-el').forEach(e=>e.remove());
+  nodes.forEach(n => {
+    if (!visibleNodes.has(n.id)) return;
+    const {sx,sy} = toScreen(n.x,n.y);
+    const el = document.createElement('div');
+    el.className = 'node-el';
+    el.id = 'node-'+n.id;
+    el.style.left = sx+'px';
+    el.style.top = sy+'px';
+    el.style.zIndex = n.id===selectedId?10:1;
+    const cls = n.type==='root'?'node-root':n.type==='branch'?'node-branch':'node-leaf';
+    const borderStyle = n.type!=='root'?`border-color:${n.color}66;`:'';
+    const colorStyle = n.type==='leaf'?`color:${n.color}cc;`:'';
+    
+    const hasChildren = n.children && n.children.length > 0;
+    const as = Math.max(0.6, scale); // arrow scale
+    const arrowHtml = hasChildren ? 
+      `<div class="node-arrow" onclick="toggleCollapse(${n.id}, event)" style="width:${18*as}px; height:${18*as}px; font-size:${10*as}px; bottom:${-6*as}px; right:${-6*as}px;">${n.collapsed ? '▶' : '▼'}</div>` : '';
+
+    const noteIndicator = n.note && n.note.trim() !== '' ? `<i class="ti ti-notes" style="font-size: 14px; opacity: 0.8; margin-left: 4px;" title="${n.note}"></i>` : '';
+
+    el.innerHTML = `<div class="node-box ${cls} ${n.id===selectedId?'selected':''}" style="${borderStyle}${colorStyle}font-size:${Math.max(10,13*scale)}px;padding:${Math.max(4,8*scale)}px ${Math.max(8,16*scale)}px;border-radius:${n.type==='root'?18:14}px;">
+      ${n.label} ${noteIndicator}
+    </div>${arrowHtml}`;
+    
+    el.onclick = (e) => { e.stopPropagation(); selectNode(n.id); };
+    let dragStarted=false, ds={x:0,y:0}, dn={x:0,y:0};
+    el.onmousedown = (e) => {
+      if(e.button!==0)return;
+      dragStarted=true; ds={x:e.clientX,y:e.clientY}; dn={x:n.x,y:n.y};
+      const move = (ev) => {
+        const dx=(ev.clientX-ds.x)/scale, dy=(ev.clientY-ds.y)/scale;
+        if(Math.abs(dx)>3||Math.abs(dy)>3) {
+          n.x=dn.x+dx; n.y=dn.y+dy; render();
+        }
+      };
+      const up=()=>{ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); };
+      document.addEventListener('mousemove',move);
+      document.addEventListener('mouseup',up);
+      e.stopPropagation();
+    };
+    el.ontouchstart = (e) => {
+      const t=e.touches[0]; ds={x:t.clientX,y:t.clientY}; dn={x:n.x,y:n.y};
+      const move=(ev)=>{ const tt=ev.touches[0]; n.x=dn.x+(tt.clientX-ds.x)/scale; n.y=dn.y+(tt.clientY-ds.y)/scale; render(); };
+      const up=()=>{ wrap.removeEventListener('touchmove',move); wrap.removeEventListener('touchend',up); };
+      wrap.addEventListener('touchmove',move,{passive:true});
+      wrap.addEventListener('touchend',up);
+      e.stopPropagation();
+    };
+    wrap.appendChild(el);
+  });
+  updateStatus();
+  drawMinimap();
+  requestSave();
+}
+
+function selectNode(id) {
+  selectedId = (selectedId===id)?null:id;
+  if(selectedId) {
+    const n = nodes.find(x=>x.id===selectedId);
+    document.getElementById('node-label-input').value = n.label;
+    document.getElementById('node-note-input').value = n.note || '';
+    editColor = n.color;
+    updateColorPicker();
+    panel.style.display='block';
+  } else {
+    panel.style.display='none';
+  }
+  render();
+}
+
+function updateColorPicker() {
+  const row = document.getElementById('color-picker');
+  row.innerHTML = COLORS.map((c,i)=>`<div class="color-dot ${c===editColor?'active':''}" style="background:${c}" onclick="setEditColor('${c}')"></div>`).join('');
+}
+
+function setEditColor(c) { editColor=c; updateColorPicker(); }
+
+function applyNodeEdit() {
+  if(!selectedId) return;
+  const n = nodes.find(x=>x.id===selectedId);
+  n.label = document.getElementById('node-label-input').value || n.label;
+  n.note = document.getElementById('node-note-input').value;
+  n.color = editColor;
+  render(); showToast('সংরক্ষিত!');
+}
+
+function deleteNode() {
+  if(!selectedId) return;
+  const n = nodes.find(x=>x.id===selectedId);
+  if(!n || n.type==='root') { showToast('মূল নোড মুছা যাবে না'); return; }
+  function removeAll(id) {
+    const ch = nodes.find(x=>x.id===id)?.children||[];
+    ch.forEach(removeAll);
+    nodes = nodes.filter(x=>x.id!==id);
+  }
+  const p = nodes.find(x=>x.id===n.parent);
+  if(p) p.children = p.children.filter(x=>x!==selectedId);
+  removeAll(selectedId);
+  selectedId=null; panel.style.display='none';
+  render(); showToast('নোড মুছা হয়েছে');
+}
+
+function addChildNode() {
+  const parent = selectedId ? nodes.find(x=>x.id===selectedId) : nodes[0];
+  const angle = Math.random()*Math.PI*2;
+  const dist = parent.type==='root'?160:100;
+  const newNode = {
+    id: nextId++, label: 'নতুন ধারণা', note: '', x: parent.x+Math.cos(angle)*dist, y: parent.y+Math.sin(angle)*dist,
+    color: COLORS[Math.floor(Math.random()*COLORS.length)], type: parent.type==='root'?'branch':'leaf', parent: parent.id, children: []
+  };
+  parent.children.push(newNode.id);
+  if (parent.collapsed) parent.collapsed = false;
+  nodes.push(newNode);
+  selectedId = newNode.id;
+  document.getElementById('node-label-input').value = newNode.label;
+  document.getElementById('node-note-input').value = '';
+  editColor = newNode.color;
+  updateColorPicker();
+  panel.style.display='block';
+  render(); showToast('নোড যোগ হয়েছে!');
+}
+
+function addSiblingNode() {
+  if(!selectedId) { addChildNode(); return; }
+  const n = nodes.find(x=>x.id===selectedId);
+  if(!n.parent) { addChildNode(); return; }
+  const p = nodes.find(x=>x.id===n.parent);
+  const angle = Math.random()*Math.PI*2;
+  const newNode = {
+    id: nextId++, label: 'নতুন শাখা', note: '', x: p.x+Math.cos(angle)*160, y: p.y+Math.sin(angle)*160,
+    color: n.color, type: n.type, parent: p.id, children: []
+  };
+  p.children.push(newNode.id);
+  if (p.collapsed) p.collapsed = false;
+  nodes.push(newNode);
+  selectedId = newNode.id;
+  render(); showToast('শাখা যোগ হয়েছে!');
+}
+
+function autoLayout() {
+  const root = nodes.find(x=>x.type==='root');
+  root.x=0; root.y=0;
+  const branches = nodes.filter(x=>x.parent===root.id);
+  const angleStep = (Math.PI*2)/branches.length;
+  branches.forEach((b,i) => {
+    const angle = i*angleStep - Math.PI/2;
+    b.x = Math.cos(angle)*200; b.y = Math.sin(angle)*200;
+    const leaves = nodes.filter(x=>x.parent===b.id);
+    leaves.forEach((l,j) => {
+      const la = angle + (j-(leaves.length-1)/2)*0.4;
+      l.x = b.x + Math.cos(la)*140; l.y = b.y + Math.sin(la)*140;
+    });
+  });
+  render(); showToast('স্বয়ংক্রিয়ভাবে সাজানো হয়েছে');
+}
+
+function resetView() { panX=0; panY=0; scale=1; render(); }
+
+function exportMap() {
+  const data = JSON.stringify({nodes, meta:{created: new Date().toISOString(), app:'MindNode Clone'}}, null, 2);
+  const blob = new Blob([data],{type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mindmap.json'; a.click();
+  showToast('এক্সপোর্ট সম্পন্ন!');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent=msg; t.style.opacity='1';
+  setTimeout(()=>t.style.opacity='0',2000);
+}
+
+function updateStatus() {
+  document.getElementById('s-nodes').textContent = 'নোড: '+nodes.length;
+  const sel = selectedId ? nodes.find(x=>x.id===selectedId) : null;
+  document.getElementById('s-selected').textContent = sel ? 'নির্বাচিত: '+sel.label : 'নির্বাচিত: কিছু না';
+}
+
+function drawMinimap() {
+  const c = document.getElementById('minimap-canvas');
+  if(!c) return;
+  const ctx = c.getContext('2d');
+  c.width=120; c.height=75;
+  ctx.fillStyle='#161922'; ctx.fillRect(0,0,120,75);
+  if(!nodes.length) return;
+  const activeNodes = nodes.filter(n => visibleNodes.has(n.id));
+  if(!activeNodes.length) return;
+  const xs=activeNodes.map(n=>n.x), ys=activeNodes.map(n=>n.y);
+  const minX=Math.min(...xs)-60, maxX=Math.max(...xs)+60;
+  const minY=Math.min(...ys)-40, maxY=Math.max(...ys)+40;
+  const scX=110/(maxX-minX||1), scY=65/(maxY-minY||1);
+  const sc=Math.min(scX,scY);
+  const ox=5+(110-(maxX-minX)*sc)/2, oy=5+(65-(maxY-minY)*sc)/2;
+  activeNodes.forEach(n=>{
+    if(n.parent){
+      const p=nodes.find(x=>x.id===n.parent);
+      if(p && visibleNodes.has(p.id)){
+        ctx.strokeStyle=n.color+'66'; ctx.lineWidth=0.8;
+        ctx.beginPath(); ctx.moveTo(ox+(p.x-minX)*sc, oy+(p.y-minY)*sc);
+        ctx.lineTo(ox+(n.x-minX)*sc, oy+(n.y-minY)*sc); ctx.stroke();
+      }
+    }
+  });
+  activeNodes.forEach(n=>{
+    ctx.fillStyle=n.color; ctx.beginPath();
+    const r=n.type==='root'?6:n.type==='branch'?4:2.5;
+    ctx.arc(ox+(n.x-minX)*sc, oy+(n.y-minY)*sc, r, 0, Math.PI*2); ctx.fill();
+  });
+}
+
+wrap.onmousedown = (e) => {
+  if(e.target===wrap||e.target===svg) {
+    isPanning=true; panStart={x:e.clientX,y:e.clientY};
+    wrap.classList.add('panning');
+    selectedId=null; panel.style.display='none'; render();
+  }
+};
+document.addEventListener('mousemove',(e)=>{
+  if(!isPanning)return;
+  panX+=(e.clientX-panStart.x)/scale; panY+=(e.clientY-panStart.y)/scale;
+  panStart={x:e.clientX,y:e.clientY}; render();
+});
+document.addEventListener('mouseup',()=>{ isPanning=false; wrap.classList.remove('panning'); });
+
+wrap.onwheel=(e)=>{
+  e.preventDefault();
+  const factor = e.deltaY<0?1.1:0.91;
+  scale = Math.min(2.5,Math.max(0.3,scale*factor));
+  render();
+};
+
+let lastTouchDist=0;
+wrap.addEventListener('touchstart',(e)=>{
+  if(e.touches.length===2) lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+},{passive:true});
+wrap.addEventListener('touchmove',(e)=>{
+  if(e.touches.length===2){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    scale=Math.min(2.5,Math.max(0.3,scale*(d/lastTouchDist)));
+    lastTouchDist=d; render();
+  }
+},{passive:true});
+
+updateColorPicker();
+initProjects(); // This replaces the bare render() since it calls loadProject() -> render()
+</script>
