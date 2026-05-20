@@ -357,13 +357,21 @@ function render() {
       svg.appendChild(highlight);
     }
   });
-  document.querySelectorAll('.node-el').forEach(e=>e.remove());
+  document.querySelectorAll('.node-el').forEach(e => {
+    const idStr = e.id.replace('node-', '');
+    if (!visibleNodes.has(parseInt(idStr))) e.remove();
+  });
   nodes.forEach(n => {
     if (!visibleNodes.has(n.id)) return;
     const {sx,sy} = toScreen(n.x,n.y);
-    const el = document.createElement('div');
-    el.className = 'node-el';
-    el.id = 'node-'+n.id;
+    let el = document.getElementById('node-'+n.id);
+    let isNew = false;
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'node-el';
+      el.id = 'node-'+n.id;
+      isNew = true;
+    }
     el.style.left = sx+'px';
     el.style.top = sy+'px';
     el.style.zIndex = n.id===selectedId?10:1;
@@ -374,39 +382,41 @@ function render() {
     const hasChildren = n.children && n.children.length > 0;
     const as = Math.max(0.6, scale); // arrow scale
     const arrowHtml = hasChildren ? 
-      `<div class="node-arrow" onclick="toggleCollapse(${n.id}, event)" style="width:${18*as}px; height:${18*as}px; font-size:${10*as}px; bottom:${-6*as}px; right:${-6*as}px;">${n.collapsed ? '▶' : '▼'}</div>` : '';
+      `<div class="node-arrow" onclick="toggleCollapse(${n.id}, event)" style="width:${18*as}px; height:${18*as}px; font-size:${10*as}px; bottom:${-6*as}px; right:${-6*as}px; pointer-events:auto;">${n.collapsed ? '▶' : '▼'}</div>` : '';
 
     const noteIndicator = n.note && n.note.trim() !== '' ? `<i class="ti ti-notes" style="font-size: 14px; opacity: 0.8; margin-left: 4px;" title="${n.note}"></i>` : '';
 
-    el.innerHTML = `<div class="node-box ${cls} ${n.id===selectedId?'selected':''}" style="${borderStyle}${colorStyle}font-size:${Math.max(10,13*scale)}px;padding:${Math.max(4,8*scale)}px ${Math.max(8,16*scale)}px;border-radius:${n.type==='root'?18:14}px;">
+    el.innerHTML = `<div class="node-box ${cls} ${n.id===selectedId?'selected':''}" style="${borderStyle}${colorStyle}font-size:${Math.max(10,13*scale)}px;padding:${Math.max(4,8*scale)}px ${Math.max(8,16*scale)}px;border-radius:${n.type==='root'?18:14}px; pointer-events:none;">
       ${n.label} ${noteIndicator}
     </div>${arrowHtml}`;
     
-    el.onclick = (e) => { e.stopPropagation(); selectNode(n.id); };
-    let dragStarted=false, ds={x:0,y:0}, dn={x:0,y:0};
-    el.onmousedown = (e) => {
-      if(e.button!==0)return;
-      dragStarted=true; ds={x:e.clientX,y:e.clientY}; dn={x:n.x,y:n.y};
-      const move = (ev) => {
-        const dx=(ev.clientX-ds.x)/scale, dy=(ev.clientY-ds.y)/scale;
-        if(Math.abs(dx)>3||Math.abs(dy)>3) {
-          n.x=dn.x+dx; n.y=dn.y+dy; render();
-        }
+    if (isNew) {
+      el.onclick = (e) => { e.stopPropagation(); selectNode(n.id); };
+      let dragStarted=false, ds={x:0,y:0}, dn={x:0,y:0};
+      el.onmousedown = (e) => {
+        if(e.button!==0)return;
+        dragStarted=true; ds={x:e.clientX,y:e.clientY}; dn={x:n.x,y:n.y};
+        const move = (ev) => {
+          const dx=(ev.clientX-ds.x)/scale, dy=(ev.clientY-ds.y)/scale;
+          if(Math.abs(dx)>3||Math.abs(dy)>3) {
+            n.x=dn.x+dx; n.y=dn.y+dy; render();
+          }
+        };
+        const up=()=>{ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); };
+        document.addEventListener('mousemove',move);
+        document.addEventListener('mouseup',up);
+        e.stopPropagation();
       };
-      const up=()=>{ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); };
-      document.addEventListener('mousemove',move);
-      document.addEventListener('mouseup',up);
-      e.stopPropagation();
-    };
-    el.ontouchstart = (e) => {
-      const t=e.touches[0]; ds={x:t.clientX,y:t.clientY}; dn={x:n.x,y:n.y};
-      const move=(ev)=>{ ev.preventDefault(); const tt=ev.touches[0]; n.x=dn.x+(tt.clientX-ds.x)/scale; n.y=dn.y+(tt.clientY-ds.y)/scale; render(); };
-      const up=()=>{ document.removeEventListener('touchmove',move); document.removeEventListener('touchend',up); };
-      document.addEventListener('touchmove',move,{passive:false});
-      document.addEventListener('touchend',up);
-      e.stopPropagation();
-    };
-    wrap.appendChild(el);
+      el.ontouchstart = (e) => {
+        const t=e.touches[0]; ds={x:t.clientX,y:t.clientY}; dn={x:n.x,y:n.y};
+        const move=(ev)=>{ ev.preventDefault(); const tt=ev.touches[0]; n.x=dn.x+(tt.clientX-ds.x)/scale; n.y=dn.y+(tt.clientY-ds.y)/scale; render(); };
+        const up=()=>{ document.removeEventListener('touchmove',move); document.removeEventListener('touchend',up); };
+        document.addEventListener('touchmove',move,{passive:false});
+        document.addEventListener('touchend',up);
+        e.stopPropagation();
+      };
+      wrap.appendChild(el);
+    }
   });
   updateStatus();
   drawMinimap();
