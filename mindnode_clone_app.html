@@ -81,6 +81,8 @@ body { font-family: var(--font-sans); background: transparent; }
     <button class="tb-btn" onclick="autoLayout()"><i class="ti ti-layout-distribute-horizontal" aria-hidden="true"></i> সাজাও</button>
     <button class="tb-btn" onclick="resetView()"><i class="ti ti-focus-2" aria-hidden="true"></i> রিসেট</button>
     <div class="tb-sep"></div>
+    <button class="tb-btn" onclick="document.getElementById('import-file').click()"><i class="ti ti-upload" aria-hidden="true"></i> ইমপোর্ট</button>
+    <input type="file" id="import-file" style="display:none" accept=".json" onchange="importMap(event)" />
     <button class="tb-btn" onclick="exportMap()"><i class="ti ti-download" aria-hidden="true"></i> এক্সপোর্ট</button>
   </div>
   <div id="canvas-wrap">
@@ -531,6 +533,43 @@ function exportMap() {
   const blob = new Blob([data],{type:'application/json'});
   const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mindmap.json'; a.click();
   showToast('এক্সপোর্ট সম্পন্ন!');
+}
+
+function importMap(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      if (parsed && parsed.nodes && parsed.nodes.length > 0) {
+        const newId = 'proj-' + Date.now();
+        const rootNode = parsed.nodes.find(n => n.type === 'root');
+        const projName = rootNode ? rootNode.label : 'Imported Project';
+        const maxId = Math.max(...parsed.nodes.map(n => n.id));
+        
+        const data = {
+          nodes: parsed.nodes,
+          nextId: maxId + 1,
+          panX: 0, panY: 0, scale: 1
+        };
+        localStorage.setItem('mindnode_data_' + newId, JSON.stringify(data));
+        
+        projects.push({ id: newId, name: projName, lastModified: Date.now() });
+        saveProjectsList();
+        
+        loadProject(newId);
+        renderProjectList();
+        showToast('প্রজেক্ট ইমপোর্ট সফল হয়েছে!');
+      } else {
+        showToast('ভুল ফাইল ফরম্যাট!');
+      }
+    } catch (err) {
+      showToast('ফাইলটি পড়া যায়নি!');
+    }
+    e.target.value = ''; // Reset
+  };
+  reader.readAsText(file);
 }
 
 function showToast(msg) {
